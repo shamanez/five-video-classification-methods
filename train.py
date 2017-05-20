@@ -64,14 +64,14 @@ def main():
     this file."""
     model = 'conv_3d'  # see `models.py` for more
     saved_model = None  # None or weights file
-    class_limit = 2  # int, can be 1-101 or None
-    seq_length = 40
+    class_limit = 51  # int, can be 1-101 or None
+    seq_length = 16
     load_to_memory = True  # pre-load the sequences into memory
 
     # Chose images or features and image shape based on network.
     if model == 'conv_3d':
         data_type = 'images'
-        image_shape = (80, 80, 3)
+        image_shape = (112, 112, 3)
     elif model == 'lrcn':
         data_type = 'image'
         image_shape = (150, 150, 3)

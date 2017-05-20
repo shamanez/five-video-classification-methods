@@ -1,9 +1,9 @@
 """
 A collection of models we'll use to attempt to classify videos.
 """
-from keras.layers import Dense, Flatten, Dropout, Reshape, Input
+from keras.layers import Dense, Flatten, Dropout, Reshape, Input, ZeroPadding3D
 from keras.layers.recurrent import LSTM
-from keras.models import Sequential, load_model
+from keras.models import Sequential, load_model, model_from_json
 from keras.optimizers import Adam, RMSprop
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.convolutional import (Conv2D, MaxPooling3D, Conv3D,
@@ -55,7 +55,7 @@ class ResearchModels():
             self.model = self.mlp()
         elif model == 'conv_3d':
             print("Loading Conv3D")
-            self.input_shape = (seq_length, 80, 80, 3)
+            self.input_shape = (seq_length, 112, 112, 3)
             self.model = self.conv_3d()
         elif model == 'stateful_lrcn':
             print("Loading stateful LRCN")
@@ -66,25 +66,11 @@ class ResearchModels():
             sys.exit()
 
         # Now compile the network.
-        optimizer = Adam(lr=0.00001, decay=1e-6)
+        optimizer = Adam(decay=1e-6)
         self.model.compile(loss='categorical_crossentropy', optimizer=optimizer,
                            metrics=metrics)
 
         print(self.model.summary())
-
-    def lstm(self):
-        """Build a simple LSTM network. We pass the extracted features from
-        our CNN to this model predomenently."""
-        # Model.
-        model = Sequential()
-        model.add(LSTM(2048, return_sequences=True, input_shape=self.input_shape,
-                       dropout=0.5))
-        model.add(Flatten())
-        model.add(Dense(512, activation='relu'))
-        model.add(Dropout(0.5))
-        model.add(Dense(self.nb_classes, activation='softmax'))
-
-        return model
 
     def lrcn(self):
         """Build a CNN into RNN.
@@ -138,44 +124,71 @@ class ResearchModels():
 
         return model
 
-    def mlp(self):
-        """Build a simple MLP."""
-        # Model.
-        model = Sequential()
-        model.add(Dense(512, input_dim=self.input_shape))
-        model.add(Dropout(0.5))
-        model.add(Dense(512))
-        model.add(Dropout(0.5))
-        model.add(Dense(self.nb_classes, activation='softmax'))
-
-        return model
-
     def conv_3d(self):
         """
-        Build a 3D convolutional network, based loosely on C3D.
+        Build a 3D convolutional network, aka C3D.
             https://arxiv.org/pdf/1412.0767.pdf
-        """
-        # Model.
-        model = Sequential()
-        model.add(Conv3D(
-            32, (3,3,3), activation='relu', input_shape=self.input_shape
-        ))
-        model.add(MaxPooling3D(pool_size=(1, 2, 2), strides=(1, 2, 2)))
-        model.add(Conv3D(64, (3,3,3), activation='relu'))
-        model.add(MaxPooling3D(pool_size=(1, 2, 2), strides=(1, 2, 2)))
-        model.add(Conv3D(128, (3,3,3), activation='relu'))
-        model.add(Conv3D(128, (3,3,3), activation='relu'))
-        model.add(MaxPooling3D(pool_size=(1, 2, 2), strides=(1, 2, 2)))
-        model.add(Conv3D(256, (2,2,2), activation='relu'))
-        model.add(Conv3D(256, (2,2,2), activation='relu'))
-        model.add(MaxPooling3D(pool_size=(1, 2, 2), strides=(1, 2, 2)))
 
+        With thanks:
+            https://gist.github.com/albertomontesg/d8b21a179c1e6cca0480ebdf292c34d2
+        """
+
+        model = Sequential()
+        # 1st layer group
+        model.add(Conv3D(64, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv1',
+                                subsample=(1, 1, 1), 
+                                input_shape=self.input_shape))
+        model.add(MaxPooling3D(pool_size=(1, 2, 2), strides=(1, 2, 2), 
+                               border_mode='valid', name='pool1'))
+        # 2nd layer group
+        model.add(Conv3D(128, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv2',
+                                subsample=(1, 1, 1)))
+        model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2), 
+                               border_mode='valid', name='pool2'))
+        # 3rd layer group
+        model.add(Conv3D(256, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv3a',
+                                subsample=(1, 1, 1)))
+        model.add(Conv3D(256, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv3b',
+                                subsample=(1, 1, 1)))
+        model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2), 
+                               border_mode='valid', name='pool3'))
+        # 4th layer group
+        model.add(Conv3D(512, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv4a',
+                                subsample=(1, 1, 1)))
+        model.add(Conv3D(512, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv4b',
+                                subsample=(1, 1, 1)))
+        model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2), 
+                               border_mode='valid', name='pool4'))
+        # 5th layer group
+        model.add(Conv3D(512, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv5a',
+                                subsample=(1, 1, 1)))
+        model.add(Conv3D(512, 3, 3, 3, activation='relu', 
+                                border_mode='same', name='conv5b',
+                                subsample=(1, 1, 1)))
+        model.add(ZeroPadding3D(padding=(0, 1, 1)))
+        model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2), 
+                               border_mode='valid', name='pool5'))
         model.add(Flatten())
-        model.add(Dense(1024))
-        model.add(Dropout(0.5))
-        model.add(Dense(1024))
-        model.add(Dropout(0.5))
+
+        # FC layers group
+        model.add(Dense(4096, activation='relu', name='fc6'))
+        model.add(Dropout(.5))
+        model.add(Dense(4096, activation='relu', name='fc7'))
+        model.add(Dropout(.5))
         model.add(Dense(self.nb_classes, activation='softmax'))
+
+        # Load weights by name. We use by name to only load weights for
+        # layers that match. For layers we don't want to load weights for,
+        # we rename the layers above.
+        print("Loading weights from sports1M.")
+        model.load_weights('data/c3d/models/sports1M_weights_tf.h5', by_name=True)
 
         return model
 
