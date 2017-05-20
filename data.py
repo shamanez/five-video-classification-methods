@@ -103,9 +103,6 @@ class DataSet():
         train, test = self.split_train_test()
         data = train if train_test == 'train' else test
 
-        print(data[0])
-        return
-
         print("Creating %s generator with %d samples." % (train_test, len(data)))
 
         while 1:
@@ -122,7 +119,7 @@ class DataSet():
 
                 # Get a random start point and get the images for that group.
                 start_point = random.randint(0, len(frames) - self.seq_length)
-                frames = frames[start_point:self.seq_length]
+                frames = frames[start_point:start_point + self.seq_length]
                 sequence = self.build_image_sequence(frames)
 
                 # Append the sequence to the batch.
@@ -151,4 +148,9 @@ class DataSet():
 
 if __name__ == '__main__':
     data = DataSet()
-    data.frame_generator(32, 'test')
+    gen = data.frame_generator(32, 'test')
+    for x, y in gen:
+        print(y.shape)
+        print(x.shape)
+        break
+

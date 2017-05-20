@@ -40,6 +40,7 @@ def train(data_type, seq_length, model, saved_model=None,
     # Get samples per epoch.
     # Multiply by 0.7 to attempt to guess how much of data.data is the train set.
     steps_per_epoch = (len(data.data) * 0.7) // batch_size
+    val_steps_per_epoch = (len(data.data) * 0.3) // batch_size
 
     # Get generators.
     generator = data.frame_generator(batch_size, 'train')
@@ -56,15 +57,15 @@ def train(data_type, seq_length, model, saved_model=None,
         verbose=1,
         callbacks=[csv_logger],
         validation_data=val_generator,
-        validation_steps=100)
+        validation_steps=val_steps_per_epoch)
 
 def main():
     """These are the main training settings. Set each before running
     this file."""
     model = 'conv_3d'  # see `models.py` for more
     saved_model = None  # None or weights file
-    class_limit = None  # int, can be 1-101 or None
-    seq_length = 20
+    class_limit = 2  # int, can be 1-101 or None
+    seq_length = 40
     load_to_memory = True  # pre-load the sequences into memory
 
     # Chose images or features and image shape based on network.
