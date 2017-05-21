@@ -7,15 +7,17 @@ from data import DataSet
 import time
 
 def train(data_type, seq_length, model, saved_model=None,
-          class_limit=None, image_shape=None):
+          class_limit=None, image_shape=None, weights=None,
+          freeze_layers=False, last_trainable=-1):
     # Set variables.
-    nb_epoch = 1000000
-    batch_size = 32
+    nb_epoch = 100
+    batch_size = 16
+
+    curtime = time.time()
 
     # Helper: Save the model.
     checkpointer = ModelCheckpoint(
-        filepath='./data/checkpoints/' + model + '-' + data_type + \
-            '.{epoch:03d}-{val_loss:.3f}.hdf5',
+        filepath='./data/checkpoints/' + str(curtime) + '-'+ model + '.h5',
         verbose=1,
         save_best_only=True)
 
@@ -23,6 +25,9 @@ def train(data_type, seq_length, model, saved_model=None,
     timestamp = time.time()
     csv_logger = CSVLogger('./data/logs/' + model + '-' + 'training-' + \
         str(timestamp) + '.log')
+
+    # Helper: Early stopping.
+    early_stopper = EarlyStopping(patience=10)
 
     # Get the data and process it.
     if image_shape is None:
@@ -47,7 +52,9 @@ def train(data_type, seq_length, model, saved_model=None,
     val_generator = data.frame_generator(batch_size, 'test')
 
     # Get the model.
-    rm = ResearchModels(len(data.classes), model, seq_length, saved_model)
+    rm = ResearchModels(
+        len(data.classes), model, seq_length, saved_model,
+        weights=weights, freeze_layers=freeze_layers, last_trainable=last_trainable)
 
     # Use fit generator.
     rm.model.fit_generator(
@@ -55,7 +62,7 @@ def train(data_type, seq_length, model, saved_model=None,
         steps_per_epoch=steps_per_epoch,
         epochs=nb_epoch,
         verbose=1,
-        callbacks=[csv_logger],
+        callbacks=[early_stopper, checkpointer, csv_logger],
         validation_data=val_generator,
         validation_steps=val_steps_per_epoch)
 
@@ -66,7 +73,10 @@ def main():
     saved_model = None  # None or weights file
     class_limit = 51  # int, can be 1-101 or None
     seq_length = 16
-    load_to_memory = True  # pre-load the sequences into memory
+    #weights = 'data/c3d/models/sports1M_weights_tf.h5'
+    weights = 'data/checkpoints/1495331896.1490145-conv_3d.h5'
+    freeze_layers = True
+    last_trainable = -9
 
     # Chose images or features and image shape based on network.
     if model == 'conv_3d':
@@ -79,7 +89,8 @@ def main():
         image_shape = None
 
     train(data_type, seq_length, model, saved_model=saved_model,
-          class_limit=class_limit, image_shape=image_shape)
+          class_limit=class_limit, image_shape=image_shape, weights=weights,
+          freeze_layers=freeze_layers, last_trainable=last_trainable)
 
 if __name__ == '__main__':
     main()

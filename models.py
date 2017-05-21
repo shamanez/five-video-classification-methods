@@ -13,7 +13,8 @@ import sys
 
 class ResearchModels():
     def __init__(self, nb_classes, model, seq_length,
-                 saved_model=None, features_length=2048):
+                 saved_model=None, features_length=2048,
+                 weights=None, freeze_layers=False, last_trainable=-1):
         """
         `model` = one of:
             lstm
@@ -31,6 +32,7 @@ class ResearchModels():
         self.saved_model = saved_model
         self.nb_classes = nb_classes
         self.feature_queue = deque()
+        self.weights = weights
 
         # Set the metrics. Only use top k if there's a need.
         metrics = ['accuracy']
@@ -57,16 +59,24 @@ class ResearchModels():
             print("Loading Conv3D")
             self.input_shape = (seq_length, 112, 112, 3)
             self.model = self.conv_3d()
-        elif model == 'stateful_lrcn':
-            print("Loading stateful LRCN")
-            self.input_shape = (150, 150, 3)
-            self.model = self.stateful_lrcn()
+        elif model == 'pretrained_lrcn':
+            print("Loading pretrained LRCN")
+            self.input_shape = (112, 112, 3)
+            self.model = self.pretrained_lrcn()
         else:
             print("Unknown network.")
             sys.exit()
 
+        # Load weights.
+        if weights is not None:
+            self.model.load_weights(weights, by_name=True)
+
+        if freeze_layers is not None:
+            for layer in self.model.layers[:last_trainable]:
+                layer.trainable = False
+
         # Now compile the network.
-        optimizer = Adam(decay=1e-6)
+        optimizer = Adam(lr=1e-4, decay=1e-6)
         self.model.compile(loss='categorical_crossentropy', optimizer=optimizer,
                            metrics=metrics)
 
@@ -184,15 +194,9 @@ class ResearchModels():
         model.add(Dropout(.5))
         model.add(Dense(self.nb_classes, activation='softmax'))
 
-        # Load weights by name. We use by name to only load weights for
-        # layers that match. For layers we don't want to load weights for,
-        # we rename the layers above.
-        print("Loading weights from sports1M.")
-        model.load_weights('data/c3d/models/sports1M_weights_tf.h5', by_name=True)
-
         return model
 
-    def stateful_lrcn(self):
+    def pretrained_lrcn(self):
         """Build a CNN into RNN using single frames and a stateful RNN.
 
         This will require we use a sequence size of 1 and manage the state
@@ -210,20 +214,15 @@ class ResearchModels():
         from keras.applications.vgg16 import VGG16
         from keras.models import Model
 
+        # Get a pre-trained CNN.
         base_model = VGG16(weights='imagenet', include_top=False,
-                           input_shape=self.input_shape)
-        x = base_model.output
+                           input_shape=self.input_shape, pooling='avg')
 
-        # Maybe?
-        # x = GlobalAveragePooling2D()(x)
-
-        x = Flatten()(x)
-
-        # Turn the CNN output into a "sequence" of length 1
-        x = Reshape((1, -1))(x)  
+        # Distributed the CNN over time.
+        x = TimeDistributed(base_model)
 
         # Add the LSTM.
-        x = LSTM(256, batch_input_shape=(1, 1, -1), stateful=True, dropout=0.9)(x)
+        x = LSTM(256, dropout=0.9)(x)
 
         predictions = Dense(self.nb_classes, activation='softmax')(x)
 
