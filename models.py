@@ -3,12 +3,12 @@ A collection of models we'll use to attempt to classify videos.
 """
 from keras.layers import Dense, Flatten, Dropout, Reshape, Input, ZeroPadding3D
 from keras.layers.recurrent import LSTM
-from keras.models import Sequential, load_model, model_from_json
+from keras.models import Sequential, load_model, model_from_json, Model
+from keras.applications.vgg16 import VGG16
 from keras.optimizers import Adam, RMSprop
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.convolutional import (Conv2D, MaxPooling3D, Conv3D,
     MaxPooling2D)
-from collections import deque
 import sys
 
 class ResearchModels():
@@ -31,7 +31,6 @@ class ResearchModels():
         self.load_model = load_model
         self.saved_model = saved_model
         self.nb_classes = nb_classes
-        self.feature_queue = deque()
         self.weights = weights
 
         # Set the metrics. Only use top k if there's a need.
@@ -198,13 +197,8 @@ class ResearchModels():
         return model
 
     def pretrained_lrcn(self):
-        """Build a CNN into RNN using single frames and a stateful RNN.
-
-        This will require we use a sequence size of 1 and manage the state
-        manually. The goal of this setup is to allow us to use a much larger
-        CNN (like VGG16) and pretrained weights. We do this instead of
-        Time Distributed in an effort to combat our major GPU memory
-        constraints.
+        """Build a CNN into RNN using a pretrained CNN like VGG, but
+        time-distributing it so we can apply it to many frames in a sequence.
 
         Uses VGG-16:
             https://arxiv.org/abs/1409.1556
@@ -212,22 +206,22 @@ class ResearchModels():
         This architecture is also known as an LRCN:
             https://arxiv.org/pdf/1411.4389.pdf
         """
-        from keras.applications.vgg16 import VGG16
-        from keras.models import Model
-
         # Get a pre-trained CNN.
-        base_model = VGG16(weights='imagenet', include_top=False,
-                           input_shape=self.input_shape, pooling='avg')
+        cnn = VGG16(weights='imagenet', include_top=False,
+                           pooling='avg')
+        cnn.trainable = False
 
-        # Distributed the CNN over time.
-        x = TimeDistributed(base_model)
+        net_input = Input(shape=(None, 112, 112, 3), name='net_input')
+
+        # Distribute the CNN over time.
+        x = TimeDistributed(cnn)(net_input)
 
         # Add the LSTM.
-        x = LSTM(256, dropout=0.9)(x)
+        x = LSTM(512, dropout=0.9)(x)
 
         predictions = Dense(self.nb_classes, activation='softmax')(x)
 
-        model = Model(inputs=base_model.input, outputs=predictions)
+        model = Model(inputs=net_input, outputs=predictions)
 
         return model
 
