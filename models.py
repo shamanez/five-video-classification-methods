@@ -3,17 +3,18 @@ A collection of models we'll use to attempt to classify videos.
 """
 from keras.layers import Dense, Flatten, Dropout, Reshape, Input, ZeroPadding3D
 from keras.layers.recurrent import LSTM
-from keras.models import Sequential, load_model, model_from_json
+from keras.models import Sequential, load_model, model_from_json, Model
+from keras.applications.vgg16 import VGG16
 from keras.optimizers import Adam, RMSprop
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.convolutional import (Conv2D, MaxPooling3D, Conv3D,
     MaxPooling2D)
-from collections import deque
 import sys
 
 class ResearchModels():
     def __init__(self, nb_classes, model, seq_length,
-                 saved_model=None, features_length=2048):
+                 saved_model=None, features_length=2048,
+                 weights=None, freeze_layers=False, last_trainable=-1):
         """
         `model` = one of:
             lstm
@@ -30,7 +31,7 @@ class ResearchModels():
         self.load_model = load_model
         self.saved_model = saved_model
         self.nb_classes = nb_classes
-        self.feature_queue = deque()
+        self.weights = weights
 
         # Set the metrics. Only use top k if there's a need.
         metrics = ['accuracy']
@@ -57,16 +58,25 @@ class ResearchModels():
             print("Loading Conv3D")
             self.input_shape = (seq_length, 112, 112, 3)
             self.model = self.conv_3d()
-        elif model == 'stateful_lrcn':
-            print("Loading stateful LRCN")
-            self.input_shape = (150, 150, 3)
-            self.model = self.stateful_lrcn()
+        elif model == 'pretrained_lrcn':
+            print("Loading pretrained LRCN")
+            self.input_shape = (112, 112, 3)
+            self.model = self.pretrained_lrcn()
         else:
             print("Unknown network.")
             sys.exit()
 
+        # Load weights.
+        if weights is not None:
+            self.model.load_weights(weights, by_name=True)
+
+        # Freeze some layers?
+        if freeze_layers is not None:
+            for layer in self.model.layers[:last_trainable]:
+                layer.trainable = False
+
         # Now compile the network.
-        optimizer = Adam(decay=1e-6)
+        optimizer = Adam(lr=1e-4, decay=1e-6)
         self.model.compile(loss='categorical_crossentropy', optimizer=optimizer,
                            metrics=metrics)
 
@@ -184,22 +194,11 @@ class ResearchModels():
         model.add(Dropout(.5))
         model.add(Dense(self.nb_classes, activation='softmax'))
 
-        # Load weights by name. We use by name to only load weights for
-        # layers that match. For layers we don't want to load weights for,
-        # we rename the layers above.
-        print("Loading weights from sports1M.")
-        model.load_weights('data/c3d/models/sports1M_weights_tf.h5', by_name=True)
-
         return model
 
-    def stateful_lrcn(self):
-        """Build a CNN into RNN using single frames and a stateful RNN.
-
-        This will require we use a sequence size of 1 and manage the state
-        manually. The goal of this setup is to allow us to use a much larger
-        CNN (like VGG16) and pretrained weights. We do this instead of
-        Time Distributed in an effort to combat our major GPU memory
-        constraints.
+    def pretrained_lrcn(self):
+        """Build a CNN into RNN using a pretrained CNN like VGG, but
+        time-distributing it so we can apply it to many frames in a sequence.
 
         Uses VGG-16:
             https://arxiv.org/abs/1409.1556
@@ -207,27 +206,22 @@ class ResearchModels():
         This architecture is also known as an LRCN:
             https://arxiv.org/pdf/1411.4389.pdf
         """
-        from keras.applications.vgg16 import VGG16
-        from keras.models import Model
+        # Get a pre-trained CNN.
+        cnn = VGG16(weights='imagenet', include_top=False,
+                           pooling='avg')
+        cnn.trainable = False
 
-        base_model = VGG16(weights='imagenet', include_top=False,
-                           input_shape=self.input_shape)
-        x = base_model.output
+        net_input = Input(shape=(None, 112, 112, 3), name='net_input')
 
-        # Maybe?
-        # x = GlobalAveragePooling2D()(x)
-
-        x = Flatten()(x)
-
-        # Turn the CNN output into a "sequence" of length 1
-        x = Reshape((1, -1))(x)  
+        # Distribute the CNN over time.
+        x = TimeDistributed(cnn)(net_input)
 
         # Add the LSTM.
-        x = LSTM(256, batch_input_shape=(1, 1, -1), stateful=True, dropout=0.9)(x)
+        x = LSTM(512, dropout=0.9)(x)
 
         predictions = Dense(self.nb_classes, activation='softmax')(x)
 
-        model = Model(inputs=base_model.input, outputs=predictions)
+        model = Model(inputs=net_input, outputs=predictions)
 
         return model
 
