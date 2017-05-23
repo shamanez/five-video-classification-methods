@@ -8,9 +8,9 @@ import time
 
 def train(data_type, seq_length, model, saved_model=None,
           class_limit=None, image_shape=None, weights=None,
-          freeze_layers=False, last_trainable=-1):
+          freeze_layers=False, last_trainable=-1, patience=10):
     # Set variables.
-    nb_epoch = 100
+    nb_epoch = 1000
     batch_size = 16
 
     curtime = time.time()
@@ -27,7 +27,7 @@ def train(data_type, seq_length, model, saved_model=None,
         str(timestamp) + '.log')
 
     # Helper: Early stopping.
-    early_stopper = EarlyStopping(patience=10)
+    early_stopper = EarlyStopping(patience=patience)
 
     # Get the data and process it.
     if image_shape is None:
@@ -74,9 +74,10 @@ def main():
     class_limit = 51  # int, can be 1-101 or None
     seq_length = 16
     #weights = 'data/c3d/models/sports1M_weights_tf.h5'
-    weights = 'data/checkpoints/1495331896.1490145-conv_3d.h5'
-    freeze_layers = True
-    last_trainable = -9
+    weights = 'data/checkpoints/1495354996.097946-conv_3d.h5'
+    freeze_layers = False
+    last_trainable = -10
+    patience = 20
 
     # Chose images or features and image shape based on network.
     if model == 'conv_3d':
@@ -90,7 +91,8 @@ def main():
 
     train(data_type, seq_length, model, saved_model=saved_model,
           class_limit=class_limit, image_shape=image_shape, weights=weights,
-          freeze_layers=freeze_layers, last_trainable=last_trainable)
+          freeze_layers=freeze_layers, last_trainable=last_trainable,
+          patience=patience)
 
 if __name__ == '__main__':
     main()

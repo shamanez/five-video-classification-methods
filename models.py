@@ -71,6 +71,7 @@ class ResearchModels():
         if weights is not None:
             self.model.load_weights(weights, by_name=True)
 
+        # Freeze some layers?
         if freeze_layers is not None:
             for layer in self.model.layers[:last_trainable]:
                 layer.trainable = False
