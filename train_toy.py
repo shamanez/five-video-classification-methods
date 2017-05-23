@@ -7,16 +7,17 @@ from data import DataSet
 from toy_dataset import ToyDataset
 import time
 
-def train(data_type, seq_length, model, saved_model=None,
+def train(seq_length, model, saved_model=None,
           class_limit=None, image_shape=None):
     # Set variables.
-    nb_epoch = 1000000
+    nb_epoch = 1000
     batch_size = 16
+
+    curtime = time.time()
 
     # Helper: Save the model.
     checkpointer = ModelCheckpoint(
-        filepath='./data/checkpoints/' + model + '-' + data_type + \
-            '.{epoch:03d}-{val_loss:.3f}.hdf5',
+        filepath='./data/checkpoints/' + str(curtime) + '-' + model + '.h5',
         verbose=1,
         save_best_only=True)
 
@@ -25,10 +26,10 @@ def train(data_type, seq_length, model, saved_model=None,
     csv_logger = CSVLogger('./data/logs/' + model + '-' + 'training-' + \
         str(timestamp) + '.log')
 
-    dataset = ToyDataset(batch_size, image_shape[0], image_shape[1], 112, seq_length)
+    dataset = ToyDataset(batch_size, image_shape[0], image_shape[1], seq_length)
 
-    steps_per_epoch = 10000
-    val_steps_per_epoch = 1000
+    steps_per_epoch = 500
+    val_steps_per_epoch = 50
 
     # Get generators.
     generator = dataset.gen_data()
@@ -49,23 +50,14 @@ def train(data_type, seq_length, model, saved_model=None,
 def main():
     """These are the main training settings. Set each before running
     this file."""
-    model = 'conv_3d'  # see `models.py` for more
+    model = 'pretrained_lrcn'  # see `models.py` for more
     saved_model = None  # None or weights file
     class_limit = 51  # int, can be 1-101 or None
     seq_length = 16
     load_to_memory = True  # pre-load the sequences into memory
+    image_shape = (112, 112, 3)
 
-    # Chose images or features and image shape based on network.
-    if model == 'conv_3d':
-        data_type = 'images'
-        image_shape = (112, 112, 3)
-    elif model == 'lrcn':
-        data_type = 'image'
-        image_shape = (150, 150, 3)
-    else:
-        image_shape = None
-
-    train(data_type, seq_length, model, saved_model=saved_model,
+    train(seq_length, model, saved_model=saved_model,
           class_limit=class_limit, image_shape=image_shape)
 
 if __name__ == '__main__':

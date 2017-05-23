@@ -48,6 +48,7 @@ class ToyDataset():
         """A generator that returns sequences of frames."""
 
         while True:
+            # TODO: These should be initialized as numpy arrays.
             batch_X = []
             batch_y = []
 
@@ -81,8 +82,6 @@ class ToyDataset():
                         x -= self.px_per_frame / 2
                         y -= self.px_per_frame / 2
 
-                        batch_y = [0, 1, 0]
-
                     elif label == 'shrink':
                         # Change size.
                         w -= self.px_per_frame
@@ -92,15 +91,19 @@ class ToyDataset():
                         x += self.px_per_frame / 2
                         y += self.px_per_frame / 2
 
-                        batch_y = [1, 0, 0]
-
-                    elif label == 'same':
-                        batch_y = [0, 0, 1]
+                    else:
+                        # Do nothing.
+                        pass
 
                     # Now add the new frame to our sequence as an array.
                     surface_arr = np.frombuffer(self.surface.get_data(), np.uint8)
-                    surface_arr.shape = (self.surface_width, self.surface_height, 4)
+                    surface_arr.shape = (self.surface_height, self.surface_width, 4)
                     surface_arr = surface_arr[:,:,:3]  # remove alpha channel
+
+                    # Process the image for the NN.
+                    surface_arr = (surface_arr / 255.).astype(np.float32)
+
+                    # Add it to the array.
                     sequence_X.append(surface_arr)
 
                 # Now that we have our sequence, get our y.
@@ -113,19 +116,27 @@ class ToyDataset():
                     sequence_y = [0, 0, 1]
 
                 batch_X.append(sequence_X)
-                batch_y.append(batch_y)
+                batch_y.append(sequence_y)
 
-            yield np.array(sequence_X), batch_y
+            yield np.array(batch_X), np.array(batch_y)
     
 
 if __name__ == '__main__':
-    toy = ToyDataset(112, 112, 16)
+    from PIL import Image
+    toy = ToyDataset(32, 200, 100, 16)
 
     start = time.time()
     i = 0
     for x, y in toy.gen_data():
-        print(x, y)
-        sys.exit()
+        print(x.shape, y.shape)
+
+        # Checkout the first batch.
+        for sequence in x:
+            for i, image in enumerate(sequence):
+                image *= 255
+                image = Image.fromarray(image.astype('uint8'))
+                image.save(str(i) + '.png')
+            sys.exit()
 
         i += 1
 
@@ -133,7 +144,3 @@ if __name__ == '__main__':
             print(100 / ((time.time() - start) / 60))
             start = time.time()
             sys.exit()
-
-
-
-
