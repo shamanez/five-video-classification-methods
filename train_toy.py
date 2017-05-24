@@ -10,7 +10,7 @@ import time
 def train(seq_length, model, saved_model=None,
           class_limit=None, image_shape=None):
     # Set variables.
-    nb_epoch = 1000
+    nb_epoch = 500
     batch_size = 16
 
     curtime = time.time()

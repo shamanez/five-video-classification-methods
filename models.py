@@ -68,10 +68,12 @@ class ResearchModels():
 
         # Load weights.
         if weights is not None:
+            print("Loading weights from %s" % weights)
             self.model.load_weights(weights, by_name=True)
 
         # Freeze some layers?
-        if freeze_layers is not None:
+        if freeze_layers is not False:
+            print("Freezing last %d layers" % last_trainable)
             for layer in self.model.layers[:last_trainable]:
                 layer.trainable = False
 
@@ -209,7 +211,7 @@ class ResearchModels():
         # Get a pre-trained CNN.
         cnn = VGG16(weights='imagenet', include_top=False,
                            pooling='avg')
-        cnn.trainable = False
+        #cnn.trainable = False
 
         net_input = Input(shape=(None, 112, 112, 3), name='net_input')
 
@@ -217,7 +219,7 @@ class ResearchModels():
         x = TimeDistributed(cnn)(net_input)
 
         # Add the LSTM.
-        x = LSTM(512, dropout=0.9)(x)
+        x = LSTM(512, dropout=0.5)(x)
 
         predictions = Dense(self.nb_classes, activation='softmax')(x)
 
