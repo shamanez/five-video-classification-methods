@@ -3,12 +3,14 @@ A collection of models we'll use to attempt to classify videos.
 """
 from keras.layers import Dense, Flatten, Dropout, Reshape, Input, ZeroPadding3D
 from keras.layers.recurrent import LSTM
+from keras.layers.normalization import BatchNormalization
 from keras.models import Sequential, load_model, model_from_json, Model
 from keras.applications.vgg16 import VGG16
 from keras.optimizers import Adam, RMSprop
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.convolutional import (Conv2D, MaxPooling3D, Conv3D,
     MaxPooling2D)
+from keras.layers.convolutional_recurrent import ConvLSTM2D
 import sys
 
 class ResearchModels():
@@ -62,6 +64,10 @@ class ResearchModels():
             print("Loading pretrained LRCN")
             self.input_shape = (112, 112, 3)
             self.model = self.pretrained_lrcn()
+        elif model == 'conv_lstm':
+            print("Loading ConvLSTM")
+            self.input_shape = (112, 112, 3)
+            self.model = self.conv_lstm()
         else:
             print("Unknown network.")
             sys.exit()
@@ -226,4 +232,33 @@ class ResearchModels():
         model = Model(inputs=net_input, outputs=predictions)
 
         return model
+
+    def conv_lstm(self):
+        """A convolutional LSTM.
+
+        Based on:
+            https://arxiv.org/pdf/1506.04214v1.pdf
+
+        And from:
+            https://github.com/fchollet/keras/blob/master/examples/conv_lstm.py
+        """
+        seq = Sequential()
+        seq.add(ConvLSTM2D(filters=10, kernel_size=(3, 3),
+                           input_shape=self.input_shape,
+                           padding='valid', return_sequences=True))
+        seq.add(BatchNormalization())
+
+        seq.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2),
+                             border_mode='valid', name='pool1'))
+
+        seq.add(Conv3D(256, kernel_size=(3, 3, 3),
+                       activation='relu', padding='valid'))
+
+        seq.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2),
+                             border_mode='valid', name='pool2'))
+
+        seq.add(Flatten())
+        seq.add(Dense(self.nb_classes, activation='softmax'))
+
+        return seq
 
