@@ -69,20 +69,18 @@ def train(data_type, seq_length, model, saved_model=None,
 def main():
     """These are the main training settings. Set each before running
     this file."""
-    model = 'pretrained_lrcn'  # see `models.py` for more
+    model = 'conv_lstm'  # see `models.py` for more
     saved_model = None  # None or weights file
     class_limit = 51  # int, can be 1-101 or None
-    seq_length = 40
+    seq_length = 16
     #weights = 'data/c3d/models/sports1M_weights_tf.h5'
     weights = None
     freeze_layers = False
     last_trainable = -9
 
     # Chose images or features and image shape based on network.
-    if model == 'conv_3d':
-        data_type = 'images'
-        image_shape = (112, 112, 3)
-    elif model == 'lrcn' or model == 'pretrained_lrcn':
+    if model == 'conv_3d' or model == 'lrcn' or model == 'pretrained_lrcn' \
+            or model == 'conv_lstm':
         data_type = 'image'
         image_shape = (112, 112, 3)
     else:
@@ -90,8 +88,7 @@ def main():
 
     train(data_type, seq_length, model, saved_model=saved_model,
           class_limit=class_limit, image_shape=image_shape, weights=weights,
-          freeze_layers=freeze_layers, last_trainable=last_trainable,
-          patience=patience)
+          freeze_layers=freeze_layers, last_trainable=last_trainable)
 
 if __name__ == '__main__':
     main()
