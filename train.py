@@ -8,13 +8,13 @@ import time
 
 def train(data_type, seq_length, model, saved_model=None,
           concat=False, class_limit=None, image_shape=None,
-          load_to_memory=False):
+          load_to_memory=True):
     # Set variables.
     nb_epoch = 1000000
     batch_size = 32
 
     # Helper: Save the model.
-    checkpointer = ModelCheckpoint(
+    checkpointer = ModelCheckpoint(                                             #This is for writing out the logs 
         filepath='./data/checkpoints/' + model + '-' + data_type + \
             '.{epoch:03d}-{val_loss:.3f}.hdf5',
         verbose=1,
@@ -24,7 +24,7 @@ def train(data_type, seq_length, model, saved_model=None,
     tb = TensorBoard(log_dir='./data/logs')
 
     # Helper: Stop when we stop learning.
-    early_stopper = EarlyStopping(patience=100000)
+    early_stopper = EarlyStopping(patience=100000)    #this number of epoches with no impovement 
 
     # Helper: Save results.
     timestamp = time.time()
@@ -46,10 +46,13 @@ def train(data_type, seq_length, model, saved_model=None,
 
     # Get samples per epoch.
     # Multiply by 0.7 to attempt to guess how much of data.data is the train set.
-    steps_per_epoch = (len(data.data) * 0.7) // batch_size
+    
+    steps_per_epoch = (len(data.data) * 0.7) // batch_size             
+    print("Iterations per epoach", steps_per_epoch )
 
     if load_to_memory:
         # Get data.
+        
         X, y = data.get_all_sequences_in_memory('train', data_type, concat)
         X_test, y_test = data.get_all_sequences_in_memory('test', data_type, concat)
     else:
@@ -58,8 +61,8 @@ def train(data_type, seq_length, model, saved_model=None,
         val_generator = data.frame_generator(batch_size, 'test', data_type, concat)
 
     # Get the model.
-    rm = ResearchModels(len(data.classes), model, seq_length, saved_model)
-
+    rm = ResearchModels(len(data.classes), model, seq_length, saved_model)      #object for the architecture we need 
+    print(rm)
     # Fit!
     if load_to_memory:
         # Use standard fit.
@@ -71,21 +74,21 @@ def train(data_type, seq_length, model, saved_model=None,
             verbose=1,
             callbacks=[tb, early_stopper, csv_logger],
             epochs=nb_epoch)
-    else:
+    #else:
         # Use fit generator.
-        rm.model.fit_generator(
-            generator=generator,
-            steps_per_epoch=steps_per_epoch,
-            epochs=nb_epoch,
-            verbose=1,
-            callbacks=[tb, early_stopper, csv_logger],
-            validation_data=val_generator,
-            validation_steps=10)
+        #rm.model.fit_generator(
+            #generator=generator,
+            #steps_per_epoch=steps_per_epoch,
+            #epochs=nb_epoch,
+            #verbose=1,
+            #callbacks=[tb, early_stopper, csv_logger],
+            #validation_data=val_generator,
+            #validation_steps=10)
 
 def main():
     """These are the main training settings. Set each before running
     this file."""
-    model = 'conv_3d'  # see `models.py` for more
+    model = 'lrcn'  # see `models.py` for more
     saved_model = None  # None or weights file
     class_limit = 2  # int, can be 1-101 or None
     seq_length = 40
@@ -96,7 +99,7 @@ def main():
         data_type = 'images'
         image_shape = (80, 80, 3)
     elif model == 'lrcn':
-        data_type = 'image'
+        data_type = 'images'
         image_shape = (150, 150, 3)
     else:
         data_type = 'features'
@@ -107,6 +110,7 @@ def main():
         concat = True
     else:
         concat = False
+    print(image_shape)
 
     train(data_type, seq_length, model, saved_model=saved_model,
           class_limit=class_limit, concat=concat, image_shape=image_shape,

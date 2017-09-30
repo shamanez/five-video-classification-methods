@@ -9,7 +9,7 @@ import os.path
 import pandas as pd
 import sys
 import operator
-from processor import process_image
+from processor import process_image  #to convert the image in to an array 3 demetional 
 from keras.utils import np_utils
 
 class DataSet():
@@ -27,21 +27,24 @@ class DataSet():
 
         # Get the data.
         self.data = self.get_data()
+       
 
         # Get the classes.
         self.classes = self.get_classes()
-
+      
         # Now do some minor data cleaning.
         self.data = self.clean_data()
-
+  
         self.image_shape = image_shape
-
+      
+        print("Created DataSet object")
     @staticmethod
     def get_data():
         """Load our data from file."""
         with open('./data/data_file.csv', 'r') as fin:
             reader = csv.reader(fin)
             data = list(reader)
+
 
         return data
 
@@ -102,23 +105,33 @@ class DataSet():
         memory so we can train way faster.
         """
         # Get the right dataset.
+
         train, test = self.split_train_test()
+
+
+       
         data = train if train_test == 'train' else test
 
         print("Loading %d samples into memory for %sing." % (len(data), train_test))
 
         X, y = [], []
         for row in data:
-
-            if data_type == 'images':
-                frames = self.get_frames_for_sample(row)
-                frames = self.rescale_list(frames, self.seq_length)
-
+            
+            if data_type == 'images':   
+               
+                frames = self.get_frames_for_sample(row)  #get the number of jpg adresses to build the frames
+                
+                frames = self.rescale_list(frames, self.seq_length)  ##down sampling the frames 
+               
+             
                 # Build the image sequence
-                sequence = self.build_image_sequence(frames)
+                sequence = self.build_image_sequence(frames)   #get the image sequence as numbers matrix . Array will have 40 images each with 3 channels 
+              
 
             else:
-                sequence = self.get_extracted_sequence(data_type, row)
+            
+                print(row)
+                sequence = self.get_extracted_sequence(data_type, row) #This is to extract sequences 
 
                 if sequence is None:
                     print("Can't find sequence. Did you generate them?")
@@ -160,9 +173,9 @@ class DataSet():
                 # Check to see if we've already saved this sequence.
                 if data_type is "images":
                     # Get and resample frames.
-                    frames = self.get_frames_for_sample(sample)
-                    frames = self.rescale_list(frames, self.seq_length)
-
+                    frames = self.get_frames_for_sample(sample)     #get the number of jpg adresses to build the frames 
+                    frames = self.rescale_list(frames, self.seq_length)  #down sampling the frames 
+               
                     # Build the image sequence
                     sequence = self.build_image_sequence(frames)
                 else:
@@ -174,6 +187,7 @@ class DataSet():
                     sys.exit()  # TODO this should raise
 
                 if concat:
+                    print("I am not here")
                     # We want to pass the sequence back as a single array. This
                     # is used to pass into an MLP rather than an RNN.
                     sequence = np.concatenate(sequence).ravel()
@@ -190,9 +204,12 @@ class DataSet():
     def get_extracted_sequence(self, data_type, sample):
         """Get the saved extracted features."""
         filename = sample[2]
+
         path = self.sequence_path + filename + '-' + str(self.seq_length) + \
             '-' + data_type + '.txt'
+        print(path)
         if os.path.isfile(path):
+            print("I am inside")
             # Use a dataframe/read_csv for speed increase over numpy.
             features = pd.read_csv(path, sep=" ", header=None)
             return features.values
@@ -206,6 +223,7 @@ class DataSet():
         path = './data/' + sample[0] + '/' + sample[1] + '/'
         filename = sample[2]
         images = sorted(glob.glob(path + filename + '*jpg'))
+
         return images
 
     @staticmethod
